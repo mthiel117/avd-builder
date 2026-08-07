@@ -116,8 +116,20 @@ header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
       <div class="section-header" onclick="toggleSection(this)">Topology</div>
       <div class="section-body">
         <div class="field-grid">
-          <div class="field"><label>Spine Count</label><input type="number" id="spineCount" value="2" min="1" max="8" onchange="updateDeviceNames()"></div>
+          <div class="field"><label>Spine Count</label><input type="number" id="spineCount" value="2" min="1" max="8" onchange="updateDeviceNames(); updateInterfaceDefaults()"></div>
           <div class="field"><label>Leaf Pairs</label><input type="number" id="leafPairCount" value="2" min="1" max="16" onchange="updateDeviceNames()"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-header" onclick="toggleSection(this)">Leaf Interfaces</div>
+      <div class="section-body">
+        <div class="field-grid">
+          <div class="field"><label>Uplink Start</label><input type="number" id="uplinkStart" value="45" min="1" max="64" title="First Ethernet for spine uplinks (one per spine, consecutive)"></div>
+          <div class="field"><label>MLAG Interface 1</label><input type="number" id="mlagIntf1" value="47" min="1" max="64"></div>
+          <div class="field"><label>MLAG Interface 2</label><input type="number" id="mlagIntf2" value="48" min="1" max="64"></div>
+          <div class="field"><label>Downlink Start</label><input type="number" id="downlinkStart" value="1" min="1" max="64" title="First Ethernet for server-facing ports"></div>
         </div>
       </div>
     </div>
@@ -261,6 +273,15 @@ function updateDeviceNames() {
   container.innerHTML = html;
 }
 
+function updateInterfaceDefaults() {
+  const sc = parseInt(document.getElementById('spineCount').value) || 2;
+  const mlag1 = 47;
+  document.getElementById('uplinkStart').value = mlag1 - sc;
+  document.getElementById('mlagIntf1').value = mlag1;
+  document.getElementById('mlagIntf2').value = 48;
+  document.getElementById('downlinkStart').value = 1;
+}
+
 // ==================== COLLECT FORM DATA ====================
 function collectFormData() {
   const sc = parseInt(document.getElementById('spineCount').value) || 2;
@@ -311,9 +332,10 @@ function collectFormData() {
     underlayProtocol: document.getElementById('underlayProtocol').value,
     overlayProtocol: document.getElementById('overlayProtocol').value,
     virtualMac: document.getElementById('virtualMac').value,
-    mlagEthStart: sc + 1,
-    mlagEthEnd: sc + 2,
-    serverEth: sc + 3
+    uplinkStart: parseInt(document.getElementById('uplinkStart').value) || 1,
+    mlagEthStart: parseInt(document.getElementById('mlagIntf1').value) || (sc + 1),
+    mlagEthEnd: parseInt(document.getElementById('mlagIntf2').value) || (sc + 2),
+    serverEth: parseInt(document.getElementById('downlinkStart').value) || (sc + 3)
   };
 }
 
@@ -418,8 +440,8 @@ ansible_httpapi_validate_certs: false
 
 function genFabricVariables(c) {
   const spineDownlinks = ethRange(1, c.totalLeaves);
-  const leafUplinks = ethRange(1, c.spineCount);
-  const leafMlag = ethRange(c.mlagEthStart, c.mlagEthEnd);
+  const leafUplinks = ethRange(c.uplinkStart, c.uplinkStart + c.spineCount - 1);
+  const leafMlag = 'Ethernet' + c.mlagEthStart + ', Ethernet' + c.mlagEthEnd;
   const leafDownlink = 'Ethernet' + c.serverEth;
 
   return `---
@@ -627,7 +649,7 @@ function genClabTopology(c) {
   for (let si = 0; si < c.spineCount; si++) {
     links += `    # ${c.spines[si].name} to Leaves\n`;
     for (let li = 0; li < c.totalLeaves; li++) {
-      links += `    - endpoints: ["${c.spines[si].name}:eth${li + 1}", "${c.leaves[li].name}:eth${si + 1}"]\n`;
+      links += `    - endpoints: ["${c.spines[si].name}:eth${li + 1}", "${c.leaves[li].name}:eth${c.uplinkStart + si}"]\n`;
     }
     links += '\n';
   }
@@ -674,7 +696,7 @@ ${links}`;
 }
 
 function genInterfaceMapping(c) {
-  const maxEth = Math.max(c.totalLeaves, c.serverEth);
+  const maxEth = Math.max(c.totalLeaves, c.uplinkStart + c.spineCount - 1, c.mlagEthStart, c.mlagEthEnd, c.serverEth);
   const mgmtIntf = 'Management1';
   const mapping = { ManagementIntf: { eth0: mgmtIntf }, EthernetIntf: {} };
   for (let i = 1; i <= maxEth; i++) {
@@ -855,7 +877,7 @@ function genDrawio(c) {
       const entryX = ((si + 0.5) / c.spineCount).toFixed(3);
       cells += `<mxCell id="${eid}" style="rounded=1;strokeColor=#6c8ebf;strokeWidth=1.5;exitX=${exitX};exitY=1;exitDx=0;exitDy=0;entryX=${entryX};entryY=0;entryDx=0;entryDy=0;" edge="1" source="${spinePos[si].id}" target="${leafPos[li].id}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
       cells += `<mxCell id="${eid}_s" value="Eth${li + 1}" style="edgeLabel;html=1;fontSize=7;fontColor=#6c8ebf;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${eid}"><mxGeometry x="-0.7" relative="1" as="geometry"><mxPoint x="0" y="-2" as="offset"/></mxGeometry></mxCell>`;
-      cells += `<mxCell id="${eid}_t" value="Eth${si + 1}" style="edgeLabel;html=1;fontSize=7;fontColor=#6c8ebf;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${eid}"><mxGeometry x="0.7" relative="1" as="geometry"><mxPoint x="0" y="-2" as="offset"/></mxGeometry></mxCell>`;
+      cells += `<mxCell id="${eid}_t" value="Eth${c.uplinkStart + si}" style="edgeLabel;html=1;fontSize=7;fontColor=#6c8ebf;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${eid}"><mxGeometry x="0.7" relative="1" as="geometry"><mxPoint x="0" y="-2" as="offset"/></mxGeometry></mxCell>`;
     }
   }
 
@@ -981,7 +1003,7 @@ function genTopologySvg(c) {
       svg += edgeLabel(sl.x, sl.y, 'Eth'+(li+1), '#6c8ebf');
       // Target label
       const tl = lerp(x1,y1,x2,y2,0.82);
-      svg += edgeLabel(tl.x, tl.y, 'Eth'+(si+1), '#6c8ebf');
+      svg += edgeLabel(tl.x, tl.y, 'Eth'+(c.uplinkStart+si), '#6c8ebf');
     }
   }
 
@@ -1402,6 +1424,7 @@ function tarHeader(name, size) {
 // ==================== INIT ====================
 document.addEventListener('DOMContentLoaded', () => {
   updateDeviceNames();
+  updateInterfaceDefaults();
 });
 </script>
 </body>
