@@ -940,9 +940,11 @@ function genAnnotations(c) {
 
   const nodes = [];
 
+  const iconColor = '#16325b';
+
   // Spines — top row
   c.spines.forEach((s, i) => {
-    nodes.push({ id: s.name, position: { x: Math.round(spineStartX + i * nodeGap), y: startY } });
+    nodes.push({ id: s.name, position: { x: Math.round(spineStartX + i * nodeGap), y: startY }, iconColor, icon: 'spine' });
   });
 
   // Leaves — middle row, grouped in pairs
@@ -950,15 +952,15 @@ function genAnnotations(c) {
     const pairCenterX = pairStartX + p * (pairW + pairOuterGap) + pairW / 2;
     const leafA = c.leaves[p * 2];
     const leafB = c.leaves[p * 2 + 1];
-    nodes.push({ id: leafA.name, position: { x: Math.round(pairCenterX - pairInnerGap / 2), y: startY + layerGap } });
-    nodes.push({ id: leafB.name, position: { x: Math.round(pairCenterX + pairInnerGap / 2), y: startY + layerGap } });
+    nodes.push({ id: leafA.name, position: { x: Math.round(pairCenterX - pairInnerGap / 2), y: startY + layerGap }, iconColor, icon: 'leaf' });
+    nodes.push({ id: leafB.name, position: { x: Math.round(pairCenterX + pairInnerGap / 2), y: startY + layerGap }, iconColor, icon: 'leaf' });
   }
 
   // Servers — bottom row, centered under each pair
   for (let p = 0; p < c.leafPairCount; p++) {
     const pairCenterX = pairStartX + p * (pairW + pairOuterGap) + pairW / 2;
     const srvName = c.dcName.toLowerCase() + '-server' + (p + 1);
-    nodes.push({ id: srvName, position: { x: Math.round(pairCenterX), y: startY + layerGap * 2 } });
+    nodes.push({ id: srvName, position: { x: Math.round(pairCenterX), y: startY + layerGap * 2 }, iconColor, icon: 'client' });
   }
 
   return JSON.stringify({
