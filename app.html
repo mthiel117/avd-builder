@@ -1121,18 +1121,18 @@ function genDrawio(c) {
 
   // Spine nodes
   spinePos.forEach(s => {
-    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Lo0: ${s.lo0}&lt;br&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;AS ${c.spineBgpAs}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;arcSize=12;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
+    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Lo0: ${s.lo0}&lt;br&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;AS ${c.spineBgpAs}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;fontSize=11;arcSize=12;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
   });
 
   // Leaf nodes
   leafPos.forEach((l, i) => {
     const leafAs = c.leafStartAs + Math.floor(i / 2);
-    cells += `<mxCell id="${l.id}" value="&lt;b&gt;${l.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Lo0: ${l.lo0}&lt;br&gt;VTEP: ${l.vtep}&lt;br&gt;Mgmt: ${l.mgmtIp}&lt;br&gt;AS ${leafAs}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;arcSize=12;" vertex="1" parent="1"><mxGeometry x="${l.x}" y="${l.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
+    cells += `<mxCell id="${l.id}" value="&lt;b&gt;${l.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Lo0: ${l.lo0}&lt;br&gt;VTEP: ${l.vtep}&lt;br&gt;Mgmt: ${l.mgmtIp}&lt;br&gt;AS ${leafAs}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;arcSize=12;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="${l.x}" y="${l.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
   });
 
   // Server nodes
   serverPos.forEach(s => {
-    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;IP: ${s.hostIp}&lt;br&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;Bond1 (LACP)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontColor=#333333;arcSize=12;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
+    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;IP: ${s.hostIp}&lt;br&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;Bond1 (LACP)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontColor=#333333;arcSize=12;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
   });
 
   // Spine-to-leaf links
@@ -1334,33 +1334,36 @@ function genTopologySvg(c) {
     svg += edgeLabel(sl2.x + 10, sl2.y, 'Eth'+c.serverEth, '#82b366', pal.labelStroke);
   }
 
-  // Spine nodes
+  // Spine nodes (4 lines, centered in NH=110)
   spines.forEach(s => {
     svg += nodeRect(s.x, s.y, NW, NH, pal.spineFill, '#6c8ebf');
-    svg += `<text x="${s.x+NW/2}" y="${s.y+20}" text-anchor="middle" font-size="13" font-weight="700" fill="${pal.text}">${esc(s.name)}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+38}" text-anchor="middle" font-size="10" fill="${pal.muted}">Lo0: ${s.lo0}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+54}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${s.mgmtIp}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+70}" text-anchor="middle" font-size="10" fill="${pal.muted}">AS ${c.spineBgpAs}</text>`;
+    const st = s.y + 32;
+    svg += `<text x="${s.x+NW/2}" y="${st}" text-anchor="middle" font-size="13" font-weight="700" fill="${pal.text}">${esc(s.name)}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${st+18}" text-anchor="middle" font-size="10" fill="${pal.muted}">Lo0: ${s.lo0}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${st+34}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${s.mgmtIp}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${st+50}" text-anchor="middle" font-size="10" fill="${pal.muted}">AS ${c.spineBgpAs}</text>`;
   });
 
-  // Leaf nodes
+  // Leaf nodes (5 lines, centered in NH=110)
   leaves.forEach(l => {
     const leafAs = c.leafStartAs + l.pairIndex;
     svg += nodeRect(l.x, l.y, NW, NH, pal.leafFill, '#82b366');
-    svg += `<text x="${l.x+NW/2}" y="${l.y+18}" text-anchor="middle" font-size="13" font-weight="700" fill="${pal.text}">${esc(l.name)}</text>`;
-    svg += `<text x="${l.x+NW/2}" y="${l.y+34}" text-anchor="middle" font-size="10" fill="${pal.muted}">Lo0: ${l.lo0}</text>`;
-    svg += `<text x="${l.x+NW/2}" y="${l.y+48}" text-anchor="middle" font-size="10" fill="${pal.muted}">VTEP: ${l.vtep}</text>`;
-    svg += `<text x="${l.x+NW/2}" y="${l.y+62}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${l.mgmtIp}</text>`;
-    svg += `<text x="${l.x+NW/2}" y="${l.y+76}" text-anchor="middle" font-size="10" fill="${pal.muted}">AS ${leafAs}</text>`;
+    const lt = l.y + 22;
+    svg += `<text x="${l.x+NW/2}" y="${lt}" text-anchor="middle" font-size="13" font-weight="700" fill="${pal.text}">${esc(l.name)}</text>`;
+    svg += `<text x="${l.x+NW/2}" y="${lt+16}" text-anchor="middle" font-size="10" fill="${pal.muted}">Lo0: ${l.lo0}</text>`;
+    svg += `<text x="${l.x+NW/2}" y="${lt+30}" text-anchor="middle" font-size="10" fill="${pal.muted}">VTEP: ${l.vtep}</text>`;
+    svg += `<text x="${l.x+NW/2}" y="${lt+44}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${l.mgmtIp}</text>`;
+    svg += `<text x="${l.x+NW/2}" y="${lt+58}" text-anchor="middle" font-size="10" fill="${pal.muted}">AS ${leafAs}</text>`;
   });
 
-  // Server nodes
+  // Server nodes (4 lines, centered in SRV_H=95)
   servers.forEach(s => {
     svg += nodeRect(s.x, s.y, NW, SRV_H, pal.serverFill, pal.serverStroke);
-    svg += `<text x="${s.x+NW/2}" y="${s.y+20}" text-anchor="middle" font-size="12" font-weight="700" fill="${pal.text}">${esc(s.name)}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+36}" text-anchor="middle" font-size="10" fill="${pal.muted}">IP: ${s.hostIp}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+52}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${s.mgmtIp}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+68}" text-anchor="middle" font-size="10" fill="${pal.muted}">Bond1 (LACP)</text>`;
+    const svt = s.y + 24;
+    svg += `<text x="${s.x+NW/2}" y="${svt}" text-anchor="middle" font-size="12" font-weight="700" fill="${pal.text}">${esc(s.name)}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${svt+18}" text-anchor="middle" font-size="10" fill="${pal.muted}">IP: ${s.hostIp}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${svt+34}" text-anchor="middle" font-size="10" fill="${pal.muted}">Mgmt: ${s.mgmtIp}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${svt+50}" text-anchor="middle" font-size="10" fill="${pal.muted}">Bond1 (LACP)</text>`;
   });
 
   // Legend
