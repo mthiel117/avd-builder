@@ -81,7 +81,8 @@ header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
 .preview-content .hl-val { color: #ce9178; }
 .preview-content .hl-comment { color: #6a9955; }
 .preview-content .hl-num { color: #b5cea8; }
-.preview-placeholder { display: flex; align-items: center; justify-content: center; height: 100%; color: var(--muted); font-size: 15px; flex: 1; }
+.preview-placeholder { display: flex; align-items: flex-start; justify-content: center; flex: 1; overflow: auto; background: #fff; padding: 16px; }
+.preview-placeholder svg { max-width: 100%; height: auto; }
 .preview-diagram { flex: 1; overflow: auto; background: #fff; padding: 16px; display: flex; align-items: flex-start; justify-content: center; }
 .preview-diagram svg { max-width: 100%; height: auto; }
 .preview-actions { padding: 12px 16px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; background: #f7f8fa; border-radius: 0 0 var(--radius) 0; flex-shrink: 0; }
@@ -302,6 +303,15 @@ function toggleMultihomingMode() {
   document.getElementById('mlagL3PoolField').style.display = display;
   updateInterfaceDefaults();
   updateDeviceNames();
+}
+
+function updateTopologyPreview() {
+  const el = document.getElementById('previewPlaceholder');
+  if (!el || el.style.display === 'none') return;
+  try {
+    const c = collectFormData();
+    el.innerHTML = genTopologySvg(c);
+  } catch (e) {}
 }
 
 // ==================== COLLECT FORM DATA ====================
@@ -1232,10 +1242,22 @@ function generateAll() {
 }
 
 // ==================== PREVIEW ====================
+function showLiveTopology() {
+  document.getElementById('previewPlaceholder').style.display = '';
+  document.getElementById('previewContent').style.display = 'none';
+  document.getElementById('previewDiagram').style.display = 'none';
+  document.getElementById('previewPath').style.display = 'none';
+  document.getElementById('previewActions').style.display = 'none';
+  document.querySelectorAll('.file-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.live-topo-item').forEach(t => t.classList.add('active'));
+  updateTopologyPreview();
+}
+
 function buildTabs() {
   const sidebar = document.getElementById('fileSidebar');
   const dirsRendered = new Set();
-  let html = '';
+  let html = '<div class="file-item depth-0 live-topo-item" onclick="showLiveTopology()" title="Live Topology Preview" style="font-weight:600; color: var(--primary); border-left-color: var(--primary);">Live Topology</div>';
+  html += '<div style="border-bottom: 1px solid var(--border); margin: 4px 0;"></div>';
 
   state.fileList.forEach((f, i) => {
     const parts = f.split('/');
@@ -1287,7 +1309,8 @@ function showTab(idx) {
     copyBtns.innerHTML = '<button class="copy-btn" onclick="copyContent(\'text\')">Copy to Clipboard</button>';
   }
 
-  document.querySelectorAll('.file-item').forEach((t, i) => {
+  document.querySelectorAll('.live-topo-item').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.file-item:not(.live-topo-item)').forEach((t, i) => {
     t.classList.toggle('active', i === idx);
   });
 }
@@ -1496,6 +1519,14 @@ document.addEventListener('DOMContentLoaded', () => {
   updateDeviceNames();
   updateInterfaceDefaults();
   toggleMultihomingMode();
+  updateTopologyPreview();
+
+  document.querySelector('.form-panel').addEventListener('input', () => {
+    updateTopologyPreview();
+  });
+  document.querySelector('.form-panel').addEventListener('change', () => {
+    updateTopologyPreview();
+  });
 });
 </script>
 </body>
