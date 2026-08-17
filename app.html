@@ -737,6 +737,56 @@ function genInterfaceMapping(c) {
   return JSON.stringify(mapping, null, 4) + '\n';
 }
 
+function genAnnotations(c) {
+  const nodeGap = 150;
+  const pairInnerGap = 120;
+  const pairOuterGap = 200;
+  const layerGap = 200;
+  const startY = 100;
+
+  const spineRowW = (c.spineCount - 1) * nodeGap;
+  const pairW = pairInnerGap;
+  const pairRowW = c.leafPairCount * pairW + (c.leafPairCount - 1) * pairOuterGap;
+  const totalW = Math.max(spineRowW, pairRowW);
+  const spineStartX = (totalW - spineRowW) / 2 + 200;
+  const pairStartX = (totalW - pairRowW) / 2 + 200;
+
+  const nodes = [];
+
+  // Spines — top row
+  c.spines.forEach((s, i) => {
+    nodes.push({ id: s.name, position: { x: Math.round(spineStartX + i * nodeGap), y: startY } });
+  });
+
+  // Leaves — middle row, grouped in pairs
+  for (let p = 0; p < c.leafPairCount; p++) {
+    const pairCenterX = pairStartX + p * (pairW + pairOuterGap) + pairW / 2;
+    const leafA = c.leaves[p * 2];
+    const leafB = c.leaves[p * 2 + 1];
+    nodes.push({ id: leafA.name, position: { x: Math.round(pairCenterX - pairInnerGap / 2), y: startY + layerGap } });
+    nodes.push({ id: leafB.name, position: { x: Math.round(pairCenterX + pairInnerGap / 2), y: startY + layerGap } });
+  }
+
+  // Servers — bottom row, centered under each pair
+  for (let p = 0; p < c.leafPairCount; p++) {
+    const pairCenterX = pairStartX + p * (pairW + pairOuterGap) + pairW / 2;
+    const srvName = c.dcName.toLowerCase() + '-server' + (p + 1);
+    nodes.push({ id: srvName, position: { x: Math.round(pairCenterX), y: startY + layerGap * 2 } });
+  }
+
+  return JSON.stringify({
+    freeTextAnnotations: [],
+    freeShapeAnnotations: [],
+    trafficRateAnnotations: [],
+    groupStyleAnnotations: [],
+    networkNodeAnnotations: [],
+    nodeAnnotations: nodes,
+    edgeAnnotations: [],
+    aliasEndpointAnnotations: [],
+    viewerSettings: {}
+  }, null, 2) + '\n';
+}
+
 function genInitConfig(hostname, mgmtIp, gateway, mask, platform) {
   const mgmtIntf = 'Management1';
   return `hostname ${hostname}
@@ -1194,6 +1244,7 @@ function generateAll() {
   state.files['group_vars/CONNECTED_ENDPOINTS.yml'] = genConnectedEndpoints(c);
   state.files['clab/topology.clab.yml'] = genClabTopology(c);
   state.files['clab/interface_mapping.json'] = genInterfaceMapping(c);
+  state.files['clab/topology.clab.yml.annotations.json'] = genAnnotations(c);
   state.files['topology.drawio'] = genDrawio(c);
 
   // Init configs for spines
