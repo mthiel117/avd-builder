@@ -367,15 +367,18 @@ function updateDeviceNames() {
 }
 
 function updateInterfaceDefaults() {
+  const maxPort = 48;
   const sc = parseInt(document.getElementById('spineCount').value) || 2;
   const isAA = document.getElementById('useEvpnAA').checked;
   if (!isAA) {
-    const mlag1 = 47;
-    document.getElementById('uplinkStart').value = mlag1 - sc;
+    const mlag2 = maxPort;
+    const mlag1 = maxPort - 1;
+    const uplinkStart = mlag1 - sc;
+    document.getElementById('uplinkStart').value = uplinkStart;
     document.getElementById('mlagIntf1').value = mlag1;
-    document.getElementById('mlagIntf2').value = 48;
+    document.getElementById('mlagIntf2').value = mlag2;
   } else {
-    document.getElementById('uplinkStart').value = 47;
+    document.getElementById('uplinkStart').value = maxPort - sc + 1;
   }
   document.getElementById('downlinkStart').value = 1;
 }
