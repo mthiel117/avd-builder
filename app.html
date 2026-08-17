@@ -458,7 +458,11 @@ ${leafHosts}
 `;
 }
 
-function genFabricConnectivity() {
+function genFabricVariables(c) {
+  const spineDownlinks = ethRange(1, c.totalLeaves);
+  const leafUplinks = ethRange(c.uplinkStart, c.uplinkStart + c.spineCount - 1);
+  const leafDownlink = 'Ethernet' + c.serverEth;
+
   return `---
 ansible_connection: ansible.netcommon.httpapi
 ansible_network_os: arista.eos.eos
@@ -468,15 +472,7 @@ ansible_become: true
 ansible_become_method: enable
 ansible_httpapi_use_ssl: true
 ansible_httpapi_validate_certs: false
-`;
-}
 
-function genFabricVariables(c) {
-  const spineDownlinks = ethRange(1, c.totalLeaves);
-  const leafUplinks = ethRange(c.uplinkStart, c.uplinkStart + c.spineCount - 1);
-  const leafDownlink = 'Ethernet' + c.serverEth;
-
-  return `---
 fabric_name: ${c.fabricName}
 
 eos_designs_documentation:
@@ -1190,13 +1186,12 @@ function generateAll() {
   state.files['playbooks/build.yml'] = genBuildPlaybook();
   state.files['playbooks/deploy.yml'] = genDeployPlaybook();
   state.files['inventory.yml'] = genInventory(c);
-  state.files['group_vars/' + c.fabricName + '/fabric_ansible_connectivity.yml'] = genFabricConnectivity();
-  state.files['group_vars/' + c.fabricName + '/fabric_variables.yml'] = genFabricVariables(c);
-  state.files['group_vars/' + c.dcName + '/' + c.dcName.toLowerCase() + '.yml'] = genDcVars(c);
-  state.files['group_vars/' + c.dcName + '_SPINES/spines.yml'] = genSpines(c);
-  state.files['group_vars/' + c.dcName + '_L3_LEAVES/l3_leaves.yml'] = genLeaves(c);
-  state.files['group_vars/NETWORK_SERVICES/network_services.yml'] = genNetworkServices();
-  state.files['group_vars/CONNECTED_ENDPOINTS/connected_endpoints.yml'] = genConnectedEndpoints(c);
+  state.files['group_vars/' + c.fabricName + '.yml'] = genFabricVariables(c);
+  state.files['group_vars/' + c.dcName + '.yml'] = genDcVars(c);
+  state.files['group_vars/' + c.dcName + '_SPINES.yml'] = genSpines(c);
+  state.files['group_vars/' + c.dcName + '_L3_LEAVES.yml'] = genLeaves(c);
+  state.files['group_vars/NETWORK_SERVICES.yml'] = genNetworkServices();
+  state.files['group_vars/CONNECTED_ENDPOINTS.yml'] = genConnectedEndpoints(c);
   state.files['clab/topology.clab.yml'] = genClabTopology(c);
   state.files['clab/interface_mapping.json'] = genInterfaceMapping(c);
   state.files['topology.drawio'] = genDrawio(c);
