@@ -119,6 +119,10 @@ header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
           <div class="field"><label>Spine Count</label><input type="number" id="spineCount" value="2" min="1" max="8" onchange="updateDeviceNames(); updateInterfaceDefaults()"></div>
           <div class="field"><label>Leaf Pairs</label><input type="number" id="leafPairCount" value="2" min="1" max="16" onchange="updateDeviceNames()"></div>
         </div>
+        <div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+          <input type="checkbox" id="useEvpnAA" onchange="toggleMultihomingMode()" style="width: 16px; height: 16px; cursor: pointer;">
+          <label for="useEvpnAA" style="font-size: 13px; color: var(--text); cursor: pointer;">Use EVPN Active-Active multi-homing (instead of MLAG)</label>
+        </div>
       </div>
     </div>
 
@@ -127,8 +131,8 @@ header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
       <div class="section-body">
         <div class="field-grid">
           <div class="field"><label>Uplink Start</label><input type="number" id="uplinkStart" value="45" min="1" max="64" title="First Ethernet for spine uplinks (one per spine, consecutive)"></div>
-          <div class="field"><label>MLAG Interface 1</label><input type="number" id="mlagIntf1" value="47" min="1" max="64"></div>
-          <div class="field"><label>MLAG Interface 2</label><input type="number" id="mlagIntf2" value="48" min="1" max="64"></div>
+          <div class="field" id="mlagIntf1Field"><label>MLAG Interface 1</label><input type="number" id="mlagIntf1" value="47" min="1" max="64"></div>
+          <div class="field" id="mlagIntf2Field"><label>MLAG Interface 2</label><input type="number" id="mlagIntf2" value="48" min="1" max="64"></div>
           <div class="field"><label>Downlink Start</label><input type="number" id="downlinkStart" value="1" min="1" max="64" title="First Ethernet for server-facing ports"></div>
         </div>
       </div>
@@ -158,8 +162,8 @@ header p { font-size: 13px; color: #a0aec0; margin-top: 4px; }
           <div class="field"><label>P2P Links</label><input type="text" id="p2pPool" value="10.0.0.0/24"></div>
           <div class="field"><label>Loopback0 Pool</label><input type="text" id="loopbackPool" value="1.1.1.0/24"></div>
           <div class="field"><label>VTEP Loopback Pool</label><input type="text" id="vtepPool" value="2.2.2.0/24"></div>
-          <div class="field"><label>MLAG Peer Pool</label><input type="text" id="mlagPeerPool" value="192.168.0.0/24"></div>
-          <div class="field"><label>MLAG L3 Peer Pool</label><input type="text" id="mlagL3Pool" value="192.168.1.0/24"></div>
+          <div class="field" id="mlagPeerPoolField"><label>MLAG Peer Pool</label><input type="text" id="mlagPeerPool" value="192.168.0.0/24"></div>
+          <div class="field" id="mlagL3PoolField"><label>MLAG L3 Peer Pool</label><input type="text" id="mlagL3Pool" value="192.168.1.0/24"></div>
           <div class="field"><label>Mgmt Subnet</label><input type="text" id="mgmtSubnet" value="172.100.100.0/24"></div>
           <div class="field"><label>Mgmt Gateway</label><input type="text" id="mgmtGateway" value="172.100.100.1"></div>
         </div>
@@ -259,8 +263,10 @@ function updateDeviceNames() {
   }
   html += '</div>';
 
+  const isAA = document.getElementById('useEvpnAA').checked;
+  const pairLabel = isAA ? 'EVPN A-A Pair' : 'Leaf Pair';
   for (let p = 0; p < lp; p++) {
-    html += `<div class="device-group leaf-pair"><div class="device-group-title">Leaf Pair ${p + 1}</div>`;
+    html += `<div class="device-group leaf-pair"><div class="device-group-title">${pairLabel} ${p + 1}</div>`;
     for (let n = 0; n < 2; n++) {
       const idx = p * 2 + n;
       html += `<div class="device-row">
@@ -275,11 +281,27 @@ function updateDeviceNames() {
 
 function updateInterfaceDefaults() {
   const sc = parseInt(document.getElementById('spineCount').value) || 2;
-  const mlag1 = 47;
-  document.getElementById('uplinkStart').value = mlag1 - sc;
-  document.getElementById('mlagIntf1').value = mlag1;
-  document.getElementById('mlagIntf2').value = 48;
+  const isAA = document.getElementById('useEvpnAA').checked;
+  if (!isAA) {
+    const mlag1 = 47;
+    document.getElementById('uplinkStart').value = mlag1 - sc;
+    document.getElementById('mlagIntf1').value = mlag1;
+    document.getElementById('mlagIntf2').value = 48;
+  } else {
+    document.getElementById('uplinkStart').value = 47 - sc;
+  }
   document.getElementById('downlinkStart').value = 1;
+}
+
+function toggleMultihomingMode() {
+  const isAA = document.getElementById('useEvpnAA').checked;
+  const display = isAA ? 'none' : '';
+  document.getElementById('mlagIntf1Field').style.display = display;
+  document.getElementById('mlagIntf2Field').style.display = display;
+  document.getElementById('mlagPeerPoolField').style.display = display;
+  document.getElementById('mlagL3PoolField').style.display = display;
+  updateInterfaceDefaults();
+  updateDeviceNames();
 }
 
 // ==================== COLLECT FORM DATA ====================
@@ -310,6 +332,7 @@ function collectFormData() {
   }
 
   return {
+    useEvpnAA: document.getElementById('useEvpnAA').checked,
     fabricName: document.getElementById('fabricName').value || 'FABRIC',
     dcName: document.getElementById('dcName').value || 'DC1',
     spineCount: sc,
@@ -441,7 +464,6 @@ ansible_httpapi_validate_certs: false
 function genFabricVariables(c) {
   const spineDownlinks = ethRange(1, c.totalLeaves);
   const leafUplinks = ethRange(c.uplinkStart, c.uplinkStart + c.spineCount - 1);
-  const leafMlag = 'Ethernet' + c.mlagEthStart + ', Ethernet' + c.mlagEthEnd;
   const leafDownlink = 'Ethernet' + c.serverEth;
 
   return `---
@@ -477,7 +499,7 @@ default_interfaces:
   - types: [l3leaf]
     platforms: [default]
     uplink_interfaces: [${leafUplinks}]
-    mlag_interfaces: [${leafMlag}]
+    mlag_interfaces: [Ethernet${c.mlagEthStart}, Ethernet${c.mlagEthEnd}]
     downlink_interfaces: [${leafDownlink}]
 
 ${c.platform === 'cEOSLab' ? `custom_platform_settings:
@@ -554,9 +576,10 @@ l3leaf:
     loopback_ipv4_pool: ${c.loopbackPool}
     vtep_loopback_ipv4_pool: ${c.vtepPool}
     uplink_switches: [${uplinkSwitches}]
-    uplink_ipv4_pool: ${c.p2pPool}
+    uplink_ipv4_pool: ${c.p2pPool}${c.useEvpnAA ? `
+    mlag: false` : `
     mlag_peer_ipv4_pool: ${c.mlagPeerPool}
-    mlag_peer_l3_ipv4_pool: ${c.mlagL3Pool}
+    mlag_peer_l3_ipv4_pool: ${c.mlagL3Pool}`}
     virtual_router_mac_address: ${c.virtualMac}
     spanning_tree_priority: 4096
     spanning_tree_mode: mstp
@@ -574,9 +597,6 @@ tenants:
     vrfs:
       - name: PROD
         vrf_vni: 10
-        vtep_diagnostic:
-          loopback: 10
-          loopback_ip_range: 10.255.10.0/27
         svis:
           - id: 10
             name: PROD_VLAN10
@@ -612,7 +632,9 @@ function genConnectedEndpoints(c) {
         spanning_tree_portfast: edge
         port_channel:
           endpoint_port_channel: Bond1
-          mode: active`;
+          mode: active${c.useEvpnAA ? `
+        ethernet_segment:
+          short_esi: auto` : ''}`;
     if (p < c.leafPairCount - 1) servers += '\n\n';
   }
 
@@ -653,15 +675,17 @@ function genClabTopology(c) {
     }
     links += '\n';
   }
-  // MLAG peer links
-  links += '    # MLAG Peer Links\n';
-  for (let p = 0; p < c.leafPairCount; p++) {
-    const a = c.leaves[p * 2].name;
-    const b = c.leaves[p * 2 + 1].name;
-    links += `    - endpoints: ["${a}:eth${c.mlagEthStart}", "${b}:eth${c.mlagEthStart}"]\n`;
-    links += `    - endpoints: ["${a}:eth${c.mlagEthEnd}", "${b}:eth${c.mlagEthEnd}"]\n`;
+  // MLAG peer links (only when not using EVPN A-A)
+  if (!c.useEvpnAA) {
+    links += '    # MLAG Peer Links\n';
+    for (let p = 0; p < c.leafPairCount; p++) {
+      const a = c.leaves[p * 2].name;
+      const b = c.leaves[p * 2 + 1].name;
+      links += `    - endpoints: ["${a}:eth${c.mlagEthStart}", "${b}:eth${c.mlagEthStart}"]\n`;
+      links += `    - endpoints: ["${a}:eth${c.mlagEthEnd}", "${b}:eth${c.mlagEthEnd}"]\n`;
+    }
+    links += '\n';
   }
-  links += '\n';
   // Server links
   links += '    # Server Links\n';
   for (let p = 0; p < c.leafPairCount; p++) {
@@ -696,7 +720,9 @@ ${links}`;
 }
 
 function genInterfaceMapping(c) {
-  const maxEth = Math.max(c.totalLeaves, c.uplinkStart + c.spineCount - 1, c.mlagEthStart, c.mlagEthEnd, c.serverEth);
+  const maxEth = c.useEvpnAA
+    ? Math.max(c.totalLeaves, c.uplinkStart + c.spineCount - 1, c.serverEth)
+    : Math.max(c.totalLeaves, c.uplinkStart + c.spineCount - 1, c.mlagEthStart, c.mlagEthEnd, c.serverEth);
   const mgmtIntf = 'Management1';
   const mapping = { ManagementIntf: { eth0: mgmtIntf }, EthernetIntf: {} };
   for (let i = 1; i <= maxEth; i++) {
@@ -825,12 +851,20 @@ function genDrawio(c) {
     const a = c.leaves[p * 2];
     const b = c.leaves[p * 2 + 1];
     const idA = p * 2 + 1, idB = p * 2 + 2;
-    const vtepIp = ipFromPool(c.vtepPool, idA);
-    leafPos.push({ ...a, x: px, y: leafY, id: 'leaf' + (p * 2), lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepIp });
-    leafPos.push({ ...b, x: px + NW + pairInnerGap, y: leafY, id: 'leaf' + (p * 2 + 1), lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepIp });
-    pairBoxes.push({ x: px - 20, y: leafY - 25, w: pairW + 40, h: NH + 55, label: 'MLAG Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p) });
+    const vtepA = ipFromPool(c.vtepPool, idA);
+    const vtepB = c.useEvpnAA ? ipFromPool(c.vtepPool, idB) : vtepA;
+    leafPos.push({ ...a, x: px, y: leafY, id: 'leaf' + (p * 2), lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepA });
+    leafPos.push({ ...b, x: px + NW + pairInnerGap, y: leafY, id: 'leaf' + (p * 2 + 1), lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepB });
+    const pairLabel = c.useEvpnAA
+      ? 'EVPN A-A Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p)
+      : 'MLAG Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p);
+    pairBoxes.push({ x: px - 20, y: leafY - 25, w: pairW + 40, h: NH + 55, label: pairLabel });
   }
 
+  const pairStroke = c.useEvpnAA ? '#7B68EE' : '#d6b656';
+
+  const srvVlans = [10, 20, 30];
+  const srvBases = ['10.10.10.', '10.20.20.', '10.30.30.'];
   const serverPos = [];
   for (let p = 0; p < c.leafPairCount; p++) {
     const la = leafPos[p * 2];
@@ -838,7 +872,10 @@ function genDrawio(c) {
     const sx = (la.x + lb.x + NW) / 2 - NW / 2;
     const srvName = c.dcName.toLowerCase() + '-server' + (p + 1);
     const srvIp = c.mgmtBase + '.' + (181 + p);
-    serverPos.push({ name: srvName, mgmtIp: srvIp, x: sx, y: serverY, id: 'srv' + p });
+    const idx = p % srvVlans.length;
+    const hostOctet = 100 + Math.floor(p / srvVlans.length);
+    const hostIp = srvBases[idx] + hostOctet + '/24';
+    serverPos.push({ name: srvName, mgmtIp: srvIp, hostIp, x: sx, y: serverY, id: 'srv' + p });
   }
 
   let cells = '';
@@ -846,11 +883,12 @@ function genDrawio(c) {
 
   // Title
   cells += `<mxCell id="${cellId++}" value="&lt;b&gt;${c.fabricName} — L3LS EVPN/VXLAN Fabric&lt;/b&gt;" style="text;html=1;fontSize=20;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${canvasW / 2 - 250}" y="${margin}" width="500" height="35" as="geometry"/></mxCell>`;
-  cells += `<mxCell id="${cellId++}" value="${c.underlayProtocol.toUpperCase()} Underlay / ${c.overlayProtocol.toUpperCase()} Overlay  |  MLAG  |  VXLAN" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;fontColor=#888888;" vertex="1" parent="1"><mxGeometry x="${canvasW / 2 - 250}" y="${margin + 32}" width="500" height="25" as="geometry"/></mxCell>`;
+  const mhLabel = c.useEvpnAA ? 'EVPN A-A' : 'MLAG';
+  cells += `<mxCell id="${cellId++}" value="${c.underlayProtocol.toUpperCase()} Underlay / ${c.overlayProtocol.toUpperCase()} Overlay  |  ${mhLabel}  |  VXLAN" style="text;html=1;fontSize=11;fontStyle=2;align=center;verticalAlign=middle;fillColor=none;strokeColor=none;fontColor=#888888;" vertex="1" parent="1"><mxGeometry x="${canvasW / 2 - 250}" y="${margin + 32}" width="500" height="25" as="geometry"/></mxCell>`;
 
-  // MLAG pair boxes
+  // Pair boxes
   pairBoxes.forEach((pb, i) => {
-    cells += `<mxCell id="mlag${i}" value="${pb.label}" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=#d6b656;fontSize=10;fontStyle=2;verticalAlign=bottom;align=center;arcSize=8;" vertex="1" parent="1"><mxGeometry x="${pb.x}" y="${pb.y}" width="${pb.w}" height="${pb.h}" as="geometry"/></mxCell>`;
+    cells += `<mxCell id="pair${i}" value="${pb.label}" style="rounded=1;whiteSpace=wrap;html=1;dashed=1;dashPattern=8 4;fillColor=none;strokeColor=${pairStroke};fontSize=10;fontStyle=2;verticalAlign=bottom;align=center;arcSize=8;" vertex="1" parent="1"><mxGeometry x="${pb.x}" y="${pb.y}" width="${pb.w}" height="${pb.h}" as="geometry"/></mxCell>`;
   });
 
   // Spine nodes
@@ -866,7 +904,7 @@ function genDrawio(c) {
 
   // Server nodes
   serverPos.forEach(s => {
-    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;Bond1 (LACP)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontColor=#333333;arcSize=12;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
+    cells += `<mxCell id="${s.id}" value="&lt;b&gt;${s.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;IP: ${s.hostIp}&lt;br&gt;Mgmt: ${s.mgmtIp}&lt;br&gt;Bond1 (LACP)&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;fontSize=11;fontColor=#333333;arcSize=12;" vertex="1" parent="1"><mxGeometry x="${s.x}" y="${s.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
   });
 
   // Spine-to-leaf links
@@ -881,16 +919,18 @@ function genDrawio(c) {
     }
   }
 
-  // MLAG peer links
-  for (let p = 0; p < c.leafPairCount; p++) {
-    const aId = leafPos[p * 2].id;
-    const bId = leafPos[p * 2 + 1].id;
-    const e1 = 'e_mlag' + p + '_a';
-    const e2 = 'e_mlag' + p + '_b';
-    cells += `<mxCell id="${e1}" style="rounded=0;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" edge="1" source="${aId}" target="${bId}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
-    cells += `<mxCell id="${e1}_l" value="Eth${c.mlagEthStart}" style="edgeLabel;html=1;fontSize=7;fontColor=#d6b656;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${e1}"><mxGeometry x="0" relative="1" as="geometry"><mxPoint y="-7" as="offset"/></mxGeometry></mxCell>`;
-    cells += `<mxCell id="${e2}" style="rounded=0;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;exitX=1;exitY=0.65;exitDx=0;exitDy=0;entryX=0;entryY=0.65;entryDx=0;entryDy=0;" edge="1" source="${aId}" target="${bId}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
-    cells += `<mxCell id="${e2}_l" value="Eth${c.mlagEthEnd}" style="edgeLabel;html=1;fontSize=7;fontColor=#d6b656;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${e2}"><mxGeometry x="0" relative="1" as="geometry"><mxPoint y="7" as="offset"/></mxGeometry></mxCell>`;
+  // MLAG peer links (only when not using EVPN A-A)
+  if (!c.useEvpnAA) {
+    for (let p = 0; p < c.leafPairCount; p++) {
+      const aId = leafPos[p * 2].id;
+      const bId = leafPos[p * 2 + 1].id;
+      const e1 = 'e_mlag' + p + '_a';
+      const e2 = 'e_mlag' + p + '_b';
+      cells += `<mxCell id="${e1}" style="rounded=0;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;exitX=1;exitY=0.35;exitDx=0;exitDy=0;entryX=0;entryY=0.35;entryDx=0;entryDy=0;" edge="1" source="${aId}" target="${bId}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+      cells += `<mxCell id="${e1}_l" value="Eth${c.mlagEthStart}" style="edgeLabel;html=1;fontSize=7;fontColor=#d6b656;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${e1}"><mxGeometry x="0" relative="1" as="geometry"><mxPoint y="-7" as="offset"/></mxGeometry></mxCell>`;
+      cells += `<mxCell id="${e2}" style="rounded=0;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;exitX=1;exitY=0.65;exitDx=0;exitDy=0;entryX=0;entryY=0.65;entryDx=0;entryDy=0;" edge="1" source="${aId}" target="${bId}" parent="1"><mxGeometry relative="1" as="geometry"/></mxCell>`;
+      cells += `<mxCell id="${e2}_l" value="Eth${c.mlagEthEnd}" style="edgeLabel;html=1;fontSize=7;fontColor=#d6b656;labelBackgroundColor=#FFFFFF;" connectable="0" vertex="1" parent="${e2}"><mxGeometry x="0" relative="1" as="geometry"><mxPoint y="7" as="offset"/></mxGeometry></mxCell>`;
+    }
   }
 
   // Server links
@@ -908,18 +948,28 @@ function genDrawio(c) {
 
   // Legend
   const lx = 20, ly = legendY;
-  cells += `<mxCell id="leg_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;arcSize=8;" vertex="1" parent="1"><mxGeometry x="${lx}" y="${ly}" width="250" height="90" as="geometry"/></mxCell>`;
+  const legH = c.useEvpnAA ? 70 : 90;
+  cells += `<mxCell id="leg_box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;arcSize=8;" vertex="1" parent="1"><mxGeometry x="${lx}" y="${ly}" width="250" height="${legH}" as="geometry"/></mxCell>`;
   cells += `<mxCell id="leg_t" value="&lt;b&gt;Legend&lt;/b&gt;" style="text;html=1;fontSize=11;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 10}" y="${ly + 2}" width="60" height="20" as="geometry"/></mxCell>`;
   cells += `<mxCell id="leg1" value="" style="endArrow=none;strokeColor=#6c8ebf;strokeWidth=2;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="${lx + 15}" y="${ly + 35}" as="sourcePoint"/><mxPoint x="${lx + 55}" y="${ly + 35}" as="targetPoint"/></mxGeometry></mxCell>`;
   cells += `<mxCell id="leg1t" value="BGP Underlay / Overlay Uplink" style="text;html=1;fontSize=9;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 62}" y="${ly + 25}" width="180" height="20" as="geometry"/></mxCell>`;
-  cells += `<mxCell id="leg2" value="" style="endArrow=none;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="${lx + 15}" y="${ly + 55}" as="sourcePoint"/><mxPoint x="${lx + 55}" y="${ly + 55}" as="targetPoint"/></mxGeometry></mxCell>`;
-  cells += `<mxCell id="leg2t" value="MLAG Peer-Link" style="text;html=1;fontSize=9;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 62}" y="${ly + 45}" width="180" height="20" as="geometry"/></mxCell>`;
-  cells += `<mxCell id="leg3" value="" style="endArrow=none;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="${lx + 15}" y="${ly + 75}" as="sourcePoint"/><mxPoint x="${lx + 55}" y="${ly + 75}" as="targetPoint"/></mxGeometry></mxCell>`;
-  cells += `<mxCell id="leg3t" value="Server LACP Port-Channel" style="text;html=1;fontSize=9;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 62}" y="${ly + 65}" width="180" height="20" as="geometry"/></mxCell>`;
+  if (!c.useEvpnAA) {
+    cells += `<mxCell id="leg2" value="" style="endArrow=none;strokeColor=#d6b656;strokeWidth=2;dashed=1;dashPattern=5 3;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="${lx + 15}" y="${ly + 55}" as="sourcePoint"/><mxPoint x="${lx + 55}" y="${ly + 55}" as="targetPoint"/></mxGeometry></mxCell>`;
+    cells += `<mxCell id="leg2t" value="MLAG Peer-Link" style="text;html=1;fontSize=9;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 62}" y="${ly + 45}" width="180" height="20" as="geometry"/></mxCell>`;
+  }
+  const srvLegY = c.useEvpnAA ? ly + 55 : ly + 75;
+  cells += `<mxCell id="leg3" value="" style="endArrow=none;strokeColor=#82b366;strokeWidth=2;" edge="1" parent="1"><mxGeometry relative="1" as="geometry"><mxPoint x="${lx + 15}" y="${srvLegY}" as="sourcePoint"/><mxPoint x="${lx + 55}" y="${srvLegY}" as="targetPoint"/></mxGeometry></mxCell>`;
+  cells += `<mxCell id="leg3t" value="Server LACP Port-Channel" style="text;html=1;fontSize=9;align=left;verticalAlign=middle;fillColor=none;strokeColor=none;" vertex="1" parent="1"><mxGeometry x="${lx + 62}" y="${srvLegY - 10}" width="180" height="20" as="geometry"/></mxCell>`;
 
   // IP summary box
   const ipx = canvasW - 210;
-  cells += `<mxCell id="ip_box" value="&lt;div style='text-align:left;font-size:9px;line-height:1.5'&gt;&lt;b style='font-size:10px'&gt;IP Addressing&lt;/b&gt;&lt;br&gt;P2P Links: ${c.p2pPool}&lt;br&gt;Loopback0: ${c.loopbackPool}&lt;br&gt;VTEP Lo1: ${c.vtepPool}&lt;br&gt;MLAG Peer: ${c.mlagPeerPool}&lt;br&gt;MLAG L3: ${c.mlagL3Pool}&lt;br&gt;Mgmt: ${c.mgmtSubnet}&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;arcSize=8;verticalAlign=top;spacingLeft=8;spacingTop=4;" vertex="1" parent="1"><mxGeometry x="${ipx}" y="${ly}" width="180" height="130" as="geometry"/></mxCell>`;
+  let ipContent = `P2P Links: ${c.p2pPool}&lt;br&gt;Loopback0: ${c.loopbackPool}&lt;br&gt;VTEP Lo1: ${c.vtepPool}&lt;br&gt;`;
+  if (!c.useEvpnAA) {
+    ipContent += `MLAG Peer: ${c.mlagPeerPool}&lt;br&gt;MLAG L3: ${c.mlagL3Pool}&lt;br&gt;`;
+  }
+  ipContent += `Mgmt: ${c.mgmtSubnet}`;
+  const ipBoxH = c.useEvpnAA ? 100 : 130;
+  cells += `<mxCell id="ip_box" value="&lt;div style='text-align:left;font-size:9px;line-height:1.5'&gt;&lt;b style='font-size:10px'&gt;IP Addressing&lt;/b&gt;&lt;br&gt;${ipContent}&lt;/div&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#cccccc;arcSize=8;verticalAlign=top;spacingLeft=8;spacingTop=4;" vertex="1" parent="1"><mxGeometry x="${ipx}" y="${ly}" width="180" height="${ipBoxH}" as="geometry"/></mxCell>`;
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <mxfile host="draw.io" type="device">
@@ -937,7 +987,7 @@ ${cells}
 
 // ==================== SVG TOPOLOGY RENDERER ====================
 function genTopologySvg(c) {
-  const NW = 180, NH = 110, SRV_H = 80;
+  const NW = 180, NH = 110, SRV_H = 95;
   const spineGap = 60, pairInnerGap = 50, pairOuterGap = 100, layerGap = 140, margin = 80;
   const titleH = 60;
 
@@ -963,15 +1013,24 @@ function genTopologySvg(c) {
   for (let p = 0; p < c.leafPairCount; p++) {
     const px = pairStartX + p * (pairW + pairOuterGap);
     const idA = p * 2 + 1, idB = p * 2 + 2;
-    const vtepIp = ipFromPool(c.vtepPool, idA);
-    leaves.push({ ...c.leaves[p*2], x: px, y: leafY, lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepIp });
-    leaves.push({ ...c.leaves[p*2+1], x: px + NW + pairInnerGap, y: leafY, lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepIp });
-    pairBoxes.push({ x: px - 16, y: leafY - 22, w: pairW + 32, h: NH + 50, label: 'MLAG Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p) });
+    const vtepA = ipFromPool(c.vtepPool, idA);
+    const vtepB = c.useEvpnAA ? ipFromPool(c.vtepPool, idB) : vtepA;
+    leaves.push({ ...c.leaves[p*2], x: px, y: leafY, lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepA });
+    leaves.push({ ...c.leaves[p*2+1], x: px + NW + pairInnerGap, y: leafY, lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepB });
+    const pairLabel = c.useEvpnAA
+      ? 'EVPN A-A Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p)
+      : 'MLAG Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p);
+    pairBoxes.push({ x: px - 16, y: leafY - 22, w: pairW + 32, h: NH + 50, label: pairLabel });
   }
+  const svgSrvVlans = [10, 20, 30];
+  const svgSrvBases = ['10.10.10.', '10.20.20.', '10.30.30.'];
   const servers = [];
   for (let p = 0; p < c.leafPairCount; p++) {
     const sx = (leaves[p*2].x + leaves[p*2+1].x + NW) / 2 - NW / 2;
-    servers.push({ name: c.dcName.toLowerCase() + '-server' + (p+1), mgmtIp: c.mgmtBase + '.' + (181+p), x: sx, y: serverY });
+    const idx = p % svgSrvVlans.length;
+    const hostOctet = 100 + Math.floor(p / svgSrvVlans.length);
+    const hostIp = svgSrvBases[idx] + hostOctet + '/24';
+    servers.push({ name: c.dcName.toLowerCase() + '-server' + (p+1), mgmtIp: c.mgmtBase + '.' + (181+p), hostIp, x: sx, y: serverY });
   }
 
   let svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${canvasW} ${canvasH}" width="${canvasW}" height="${canvasH}" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif">`;
@@ -979,12 +1038,14 @@ function genTopologySvg(c) {
 
   // Title
   svg += `<text x="${canvasW/2}" y="${margin + 20}" text-anchor="middle" font-size="18" font-weight="700" fill="#1a1a2e">${c.fabricName} — L3LS EVPN/VXLAN Fabric</text>`;
-  svg += `<text x="${canvasW/2}" y="${margin + 42}" text-anchor="middle" font-size="11" fill="#888">${c.underlayProtocol.toUpperCase()} Underlay / ${c.overlayProtocol.toUpperCase()} Overlay  |  MLAG  |  VXLAN</text>`;
+  const svgMhLabel = c.useEvpnAA ? 'EVPN A-A' : 'MLAG';
+  svg += `<text x="${canvasW/2}" y="${margin + 42}" text-anchor="middle" font-size="11" fill="#888">${c.underlayProtocol.toUpperCase()} Underlay / ${c.overlayProtocol.toUpperCase()} Overlay  |  ${svgMhLabel}  |  VXLAN</text>`;
 
-  // MLAG pair boxes
+  // Pair boxes
+  const svgPairStroke = c.useEvpnAA ? '#7B68EE' : '#d6b656';
   pairBoxes.forEach(pb => {
-    svg += `<rect x="${pb.x}" y="${pb.y}" width="${pb.w}" height="${pb.h}" rx="8" fill="none" stroke="#d6b656" stroke-width="1.5" stroke-dasharray="8,4"/>`;
-    svg += `<text x="${pb.x + pb.w/2}" y="${pb.y + pb.h - 6}" text-anchor="middle" font-size="10" font-style="italic" fill="#d6b656">${pb.label}</text>`;
+    svg += `<rect x="${pb.x}" y="${pb.y}" width="${pb.w}" height="${pb.h}" rx="8" fill="none" stroke="${svgPairStroke}" stroke-width="1.5" stroke-dasharray="8,4"/>`;
+    svg += `<text x="${pb.x + pb.w/2}" y="${pb.y + pb.h - 6}" text-anchor="middle" font-size="10" font-style="italic" fill="${svgPairStroke}">${pb.label}</text>`;
   });
 
   // Connection lines (drawn before nodes so nodes sit on top)
@@ -1007,14 +1068,16 @@ function genTopologySvg(c) {
     }
   }
 
-  // MLAG peer links
-  for (let p = 0; p < c.leafPairCount; p++) {
-    const a = leaves[p*2], b = leaves[p*2+1];
-    const y1a = a.y + NH * 0.35, y1b = a.y + NH * 0.65;
-    svg += `<line x1="${a.x+NW}" y1="${y1a}" x2="${b.x}" y2="${y1a}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
-    svg += edgeLabel((a.x+NW+b.x)/2, y1a - 8, 'Eth'+c.mlagEthStart, '#d6b656');
-    svg += `<line x1="${a.x+NW}" y1="${y1b}" x2="${b.x}" y2="${y1b}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
-    svg += edgeLabel((a.x+NW+b.x)/2, y1b + 13, 'Eth'+c.mlagEthEnd, '#d6b656');
+  // MLAG peer links (only when not using EVPN A-A)
+  if (!c.useEvpnAA) {
+    for (let p = 0; p < c.leafPairCount; p++) {
+      const a = leaves[p*2], b = leaves[p*2+1];
+      const y1a = a.y + NH * 0.35, y1b = a.y + NH * 0.65;
+      svg += `<line x1="${a.x+NW}" y1="${y1a}" x2="${b.x}" y2="${y1a}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
+      svg += edgeLabel((a.x+NW+b.x)/2, y1a - 8, 'Eth'+c.mlagEthStart, '#d6b656');
+      svg += `<line x1="${a.x+NW}" y1="${y1b}" x2="${b.x}" y2="${y1b}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
+      svg += edgeLabel((a.x+NW+b.x)/2, y1b + 13, 'Eth'+c.mlagEthEnd, '#d6b656');
+    }
   }
 
   // Server links
@@ -1051,31 +1114,38 @@ function genTopologySvg(c) {
   // Server nodes
   servers.forEach(s => {
     svg += nodeRect(s.x, s.y, NW, SRV_H, '#f5f5f5', '#999');
-    svg += `<text x="${s.x+NW/2}" y="${s.y+22}" text-anchor="middle" font-size="12" font-weight="700" fill="#333">${esc(s.name)}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+40}" text-anchor="middle" font-size="10" fill="#555">Mgmt: ${s.mgmtIp}</text>`;
-    svg += `<text x="${s.x+NW/2}" y="${s.y+55}" text-anchor="middle" font-size="10" fill="#555">Bond1 (LACP)</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${s.y+20}" text-anchor="middle" font-size="12" font-weight="700" fill="#333">${esc(s.name)}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${s.y+36}" text-anchor="middle" font-size="10" fill="#555">IP: ${s.hostIp}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${s.y+52}" text-anchor="middle" font-size="10" fill="#555">Mgmt: ${s.mgmtIp}</text>`;
+    svg += `<text x="${s.x+NW/2}" y="${s.y+68}" text-anchor="middle" font-size="10" fill="#555">Bond1 (LACP)</text>`;
   });
 
   // Legend
   const lx = 20, ly = legendY;
-  svg += `<rect x="${lx}" y="${ly}" width="260" height="90" rx="6" fill="#fafafa" stroke="#ccc"/>`;
+  const svgLegH = c.useEvpnAA ? 65 : 90;
+  svg += `<rect x="${lx}" y="${ly}" width="260" height="${svgLegH}" rx="6" fill="#fafafa" stroke="#ccc"/>`;
   svg += `<text x="${lx+12}" y="${ly+18}" font-size="12" font-weight="700" fill="#333">Legend</text>`;
   svg += `<line x1="${lx+12}" y1="${ly+35}" x2="${lx+52}" y2="${ly+35}" stroke="#6c8ebf" stroke-width="2"/>`;
   svg += `<text x="${lx+60}" y="${ly+39}" font-size="10" fill="#555">BGP Underlay / Overlay Uplink</text>`;
-  svg += `<line x1="${lx+12}" y1="${ly+55}" x2="${lx+52}" y2="${ly+55}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
-  svg += `<text x="${lx+60}" y="${ly+59}" font-size="10" fill="#555">MLAG Peer-Link</text>`;
-  svg += `<line x1="${lx+12}" y1="${ly+75}" x2="${lx+52}" y2="${ly+75}" stroke="#82b366" stroke-width="2"/>`;
-  svg += `<text x="${lx+60}" y="${ly+79}" font-size="10" fill="#555">Server LACP Port-Channel</text>`;
+  if (!c.useEvpnAA) {
+    svg += `<line x1="${lx+12}" y1="${ly+55}" x2="${lx+52}" y2="${ly+55}" stroke="#d6b656" stroke-width="2" stroke-dasharray="5,3"/>`;
+    svg += `<text x="${lx+60}" y="${ly+59}" font-size="10" fill="#555">MLAG Peer-Link</text>`;
+  }
+  const svgSrvLegY = c.useEvpnAA ? ly + 55 : ly + 75;
+  svg += `<line x1="${lx+12}" y1="${svgSrvLegY}" x2="${lx+52}" y2="${svgSrvLegY}" stroke="#82b366" stroke-width="2"/>`;
+  svg += `<text x="${lx+60}" y="${svgSrvLegY+4}" font-size="10" fill="#555">Server LACP Port-Channel</text>`;
 
   // IP summary
   const ipx = canvasW - 200;
-  svg += `<rect x="${ipx}" y="${ly}" width="180" height="100" rx="6" fill="#fafafa" stroke="#ccc"/>`;
+  const svgIps = ['P2P: ' + c.p2pPool, 'Lo0: ' + c.loopbackPool, 'VTEP: ' + c.vtepPool];
+  if (!c.useEvpnAA) {
+    svgIps.push('MLAG: ' + c.mlagPeerPool);
+  }
+  svgIps.push('Mgmt: ' + c.mgmtSubnet);
+  const svgIpBoxH = 36 + svgIps.length * 14 + 6;
+  svg += `<rect x="${ipx}" y="${ly}" width="180" height="${svgIpBoxH}" rx="6" fill="#fafafa" stroke="#ccc"/>`;
   svg += `<text x="${ipx+12}" y="${ly+18}" font-size="11" font-weight="700" fill="#333">IP Addressing</text>`;
-  const ips = [
-    'P2P: ' + c.p2pPool, 'Lo0: ' + c.loopbackPool, 'VTEP: ' + c.vtepPool,
-    'MLAG: ' + c.mlagPeerPool, 'Mgmt: ' + c.mgmtSubnet
-  ];
-  ips.forEach((t, i) => {
+  svgIps.forEach((t, i) => {
     svg += `<text x="${ipx+12}" y="${ly + 36 + i*14}" font-size="9" fill="#555">${t}</text>`;
   });
 
@@ -1425,6 +1495,7 @@ function tarHeader(name, size) {
 document.addEventListener('DOMContentLoaded', () => {
   updateDeviceNames();
   updateInterfaceDefaults();
+  toggleMultihomingMode();
 });
 </script>
 </body>
