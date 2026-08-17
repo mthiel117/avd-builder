@@ -163,6 +163,7 @@ header .header-text p { font-size: 13px; color: #ffffff; margin-top: 4px; }
     <div class="btn-row">
       <button class="btn btn-primary" onclick="generateAll()">Generate All Files</button>
       <button class="btn btn-success" id="downloadBtn" onclick="downloadTarGz()" disabled>Download tar.gz</button>
+      <button class="btn" onclick="resetDefaults()" style="background: var(--section-bg); color: var(--muted); border: 1px solid var(--border);">Reset Defaults</button>
     </div>
     <div class="file-count" id="fileCount"></div>
 
@@ -381,6 +382,31 @@ function updateInterfaceDefaults() {
     document.getElementById('uplinkStart').value = maxPort - sc + 1;
   }
   document.getElementById('downlinkStart').value = 1;
+}
+
+function resetDefaults() {
+  document.getElementById('fabricName').value = 'FABRIC';
+  document.getElementById('dcName').value = 'DC1';
+  document.getElementById('spineCount').value = 2;
+  document.getElementById('leafPairCount').value = 2;
+  document.getElementById('useEvpnAA').checked = false;
+  document.getElementById('spineBgpAs').value = 65100;
+  document.getElementById('leafStartAs').value = 65101;
+  document.getElementById('p2pPool').value = '10.0.0.0/24';
+  document.getElementById('loopbackPool').value = '1.1.1.0/24';
+  document.getElementById('vtepPool').value = '2.2.2.0/24';
+  document.getElementById('mlagPeerPool').value = '192.168.0.0/24';
+  document.getElementById('mlagL3Pool').value = '192.168.1.0/24';
+  document.getElementById('mgmtSubnet').value = '172.100.100.0/24';
+  document.getElementById('mgmtGateway').value = '172.100.100.1';
+  document.getElementById('platform').value = 'cEOSLab';
+  document.getElementById('underlayProtocol').value = 'ebgp';
+  document.getElementById('overlayProtocol').value = 'ebgp';
+  document.getElementById('virtualMac').value = '00:1c:73:00:00:99';
+  toggleMultihomingMode();
+  updateDeviceNames();
+  updateInterfaceDefaults();
+  updateTopologyPreview();
 }
 
 function toggleMultihomingMode() {
