@@ -733,7 +733,21 @@ function genLeaves(c) {
   for (let p = 0; p < c.leafPairCount; p++) {
     const leafA = c.leaves[p * 2];
     const leafB = c.leaves[p * 2 + 1];
-    nodeGroups += `    - group: ${c.dcName}_L3_LEAF${p + 1}
+    if (c.useEvpnAA) {
+      const asA = c.leafStartAs + p * 2;
+      const asB = c.leafStartAs + p * 2 + 1;
+      nodeGroups += `    - group: ${c.dcName}_L3_LEAF${p + 1}
+      nodes:
+        - name: ${leafA.name}
+          id: ${p * 2 + 1}
+          bgp_as: ${asA}
+          mgmt_ip: ${leafA.mgmtIp}/${c.mgmtMask}
+        - name: ${leafB.name}
+          id: ${p * 2 + 2}
+          bgp_as: ${asB}
+          mgmt_ip: ${leafB.mgmtIp}/${c.mgmtMask}`;
+    } else {
+      nodeGroups += `    - group: ${c.dcName}_L3_LEAF${p + 1}
       bgp_as: ${c.leafStartAs + p}
       nodes:
         - name: ${leafA.name}
@@ -742,6 +756,7 @@ function genLeaves(c) {
         - name: ${leafB.name}
           id: ${p * 2 + 2}
           mgmt_ip: ${leafB.mgmtIp}/${c.mgmtMask}`;
+    }
     if (p < c.leafPairCount - 1) nodeGroups += '\n';
   }
 
@@ -1084,7 +1099,7 @@ function genDrawio(c) {
     leafPos.push({ ...a, x: px, y: leafY, id: 'leaf' + (p * 2), lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepA });
     leafPos.push({ ...b, x: px + NW + pairInnerGap, y: leafY, id: 'leaf' + (p * 2 + 1), lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepB });
     const pairLabel = c.useEvpnAA
-      ? 'EVPN A-A Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p)
+      ? 'EVPN A-A Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p * 2) + '-' + (c.leafStartAs + p * 2 + 1)
       : 'MLAG Pair ' + (p + 1) + '  •  AS ' + (c.leafStartAs + p);
     pairBoxes.push({ x: px - 20, y: leafY - 25, w: pairW + 40, h: NH + 55, label: pairLabel });
   }
@@ -1126,7 +1141,7 @@ function genDrawio(c) {
 
   // Leaf nodes
   leafPos.forEach((l, i) => {
-    const leafAs = c.leafStartAs + Math.floor(i / 2);
+    const leafAs = c.useEvpnAA ? c.leafStartAs + i : c.leafStartAs + Math.floor(i / 2);
     cells += `<mxCell id="${l.id}" value="&lt;b&gt;${l.name}&lt;/b&gt;&lt;br&gt;&lt;font style='font-size:9px'&gt;Lo0: ${l.lo0}&lt;br&gt;VTEP: ${l.vtep}&lt;br&gt;Mgmt: ${l.mgmtIp}&lt;br&gt;AS ${leafAs}&lt;/font&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;fontSize=11;arcSize=12;verticalAlign=middle;" vertex="1" parent="1"><mxGeometry x="${l.x}" y="${l.y}" width="${NW}" height="${NH}" as="geometry"/></mxCell>`;
   });
 
@@ -1261,7 +1276,7 @@ function genTopologySvg(c) {
     leaves.push({ ...c.leaves[p*2], x: px, y: leafY, lo0: ipFromPool(c.loopbackPool, idA), vtep: vtepA });
     leaves.push({ ...c.leaves[p*2+1], x: px + NW + pairInnerGap, y: leafY, lo0: ipFromPool(c.loopbackPool, idB), vtep: vtepB });
     const pairLabel = c.useEvpnAA
-      ? 'EVPN A-A Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p)
+      ? 'EVPN A-A Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p * 2) + '-' + (c.leafStartAs + p * 2 + 1)
       : 'MLAG Pair ' + (p+1) + '  •  AS ' + (c.leafStartAs + p);
     pairBoxes.push({ x: px - 16, y: leafY - 22, w: pairW + 32, h: NH + 50, label: pairLabel });
   }
@@ -1345,8 +1360,8 @@ function genTopologySvg(c) {
   });
 
   // Leaf nodes (5 lines, centered in NH=110)
-  leaves.forEach(l => {
-    const leafAs = c.leafStartAs + l.pairIndex;
+  leaves.forEach((l, i) => {
+    const leafAs = c.useEvpnAA ? c.leafStartAs + i : c.leafStartAs + l.pairIndex;
     svg += nodeRect(l.x, l.y, NW, NH, pal.leafFill, '#82b366');
     const lt = l.y + 22;
     svg += `<text x="${l.x+NW/2}" y="${lt}" text-anchor="middle" font-size="13" font-weight="700" fill="${pal.text}">${esc(l.name)}</text>`;
