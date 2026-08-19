@@ -594,6 +594,10 @@ build: ## Build Configs
 .PHONY: deploy
 deploy: ## Deploy Configs
 \tansible-playbook playbooks/deploy.yml -i inventory.yml -e "target_hosts=${fabric}"
+
+.PHONY: validate
+validate: ## Validate Fabric with ANTA
+\tansible-playbook playbooks/validate.yml -i inventory.yml -e "target_hosts=${fabric}"
 `;
 }
 
@@ -624,6 +628,19 @@ function genDeployPlaybook() {
     - name: Deploy Configurations to Devices
       ansible.builtin.import_role:
         name: arista.avd.eos_config_deploy_eapi
+`;
+}
+
+function genValidatePlaybook() {
+  return `---
+- name: Validate Fabric
+  hosts: "{{ target_hosts }}"
+  gather_facts: false
+
+  tasks:
+    - name: Validate Fabric
+      ansible.builtin.import_role:
+        name: arista.avd.anta_runner
 `;
 }
 
@@ -1472,6 +1489,7 @@ function generateAll() {
   }, null, 4) + '\n';
   state.files['playbooks/build.yml'] = genBuildPlaybook();
   state.files['playbooks/deploy.yml'] = genDeployPlaybook();
+  state.files['playbooks/validate.yml'] = genValidatePlaybook();
   state.files['inventory.yml'] = genInventory(c);
   state.files['group_vars/' + c.fabricName + '.yml'] = genFabricVariables(c);
   state.files['group_vars/' + c.dcName + '.yml'] = genDcVars(c);
